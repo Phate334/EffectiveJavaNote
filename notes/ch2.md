@@ -67,6 +67,7 @@ Builder pattern 結合 telescoping constructor pattern 的安全性和 JavaBeans
         }
     }
 
+
     SampleObj sample = new SampleObj.Builder(240).setOptionA(100).setOptionB(200).build();
 
 --------
@@ -74,7 +75,7 @@ Builder pattern 結合 telescoping constructor pattern 的安全性和 JavaBeans
 
 - [Singleton Pattern](http://openhome.cc/Gossip/DesignPattern/SingletonPattern.htm)
 
-在 JAVA5 前有兩種方法實作 Singleton 。
+在 JAVA5 前有兩種方法實作 Singleton ，引用自書中範例。
 
     // Singleton with public final field
     public class Elvis {
@@ -110,3 +111,17 @@ JAVA5 後可以使用 enum 來建立 singleton 物件，下面例子等同 publi
     }
 
 ## Item 4: Enforce noninstantiability with a private constructor ##
+
+有一些靜態方法或變數組成的類別，例如 [java.lang.Math](https://docs.oracle.com/javase/8/docs/api/java/lang/Math.html) 或 [java.util.Arrays](https://docs.oracle.com/javase/8/docs/api/java/util/Arrays.html)，或是用 factory methods 產生介面的[java.util.Collections](https://docs.oracle.com/javase/8/docs/api/java/util/Collections.html)。如果類別中沒有建構子，編譯器會自動產生，所以這幾個類別都用一個空的建構子並標上 private ，而 Math 甚至加上 final 防止被繼承。
+
+不能使用抽象的方式來禁止使用者實例化，因為這樣還是能被繼承的子類別產生實例，而且這樣會誤導使用者。
+保險的方式是在建構子中丟出 AssertionError 例外，這能確保該類別不會被實例化，也可以保證繼承的類別不會呼叫父類別的建構子。
+
+    // Noninstantiable utility class
+    public class UtilityClass {
+        // Suppress default constructor for noninstantiability
+        private UtilityClass() {
+            throw new AssertionError();
+        }
+        ... // Remainder omitted
+    }
