@@ -1,4 +1,4 @@
-# Creating and Destroying Objects #
+# Chapter2: Creating and Destroying Objects #
 
 ## Item 1: Consider static factory methods instead of constructors ##
 
@@ -16,6 +16,7 @@
 1. 主要缺點是沒有建構子能被繼承，例如 Collections Framework 只提供 factory methods 。
 2. 在文件中不像建構子一樣無法與其他靜態方法區分，可以使用一些常用的命名規則，例如 valueOf 、 getInstance 等。
 
+--------
 ## Item 2: Consider a builder when faced with many constructor parameters ##
 
 Static factories 和 constructors 遇到大量可選參數時並沒辦法容易擴充。以往會使用 telescoping constructor pattern 替每種組合撰寫建構子，這樣不但難以維護且遇到相鄰兩種相同型態的參數也容易讓使用者誤會。
@@ -66,5 +67,46 @@ Builder pattern 結合 telescoping constructor pattern 的安全性和 JavaBeans
         }
     }
 
-SampleObj sampleObj = new SampleObj.Builder(240)
-        .setOptionA(100).setOptionB(200).build();
+    SampleObj sample = new SampleObj.Builder(240).setOptionA(100).setOptionB(200).build();
+
+--------
+## Item 3: Enforce the singleton property with a private constructor or an enum type ##
+
+- [Singleton Pattern](http://openhome.cc/Gossip/DesignPattern/SingletonPattern.htm)
+
+在 JAVA5 前有兩種方法實作 Singleton 。
+
+    // Singleton with public final field
+    public class Elvis {
+        public static final Elvis INSTANCE = new Elvis();
+            private Elvis() { ... }
+        public void leaveTheBuilding() { ... }
+    }
+
+或是使用 static factory method 的 public 成員建立物件。
+
+    // Singleton with static factory
+    public class Elvis {
+        private static final Elvis INSTANCE = new Elvis();
+        private Elvis() { ... }
+        public static Elvis getInstance() { return INSTANCE; }
+        public void leaveTheBuilding() { ... }
+    }
+
+要避免反序列化後重新建立物件。
+
+    private Object readResolve() {
+        // Return the one true Elvis and let the garbage collector
+        // take care of the Elvis impersonator.
+        return INSTANCE;
+    }
+
+JAVA5 後可以使用 enum 來建立 singleton 物件，下面例子等同 public final field 。
+
+    // Enum singleton - the preferred approach
+    public enum Elvis {
+        INSTANCE;
+        public void leaveTheBuilding() { ... }
+    }
+
+## Item 4: Enforce noninstantiability with a private constructor ##
