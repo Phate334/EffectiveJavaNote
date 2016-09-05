@@ -164,8 +164,65 @@ JAVA5 後可以使用 enum 來建立 singleton 物件，下面例子等同 publi
 
     Integer temp = new Integer(10);
 
-除了可能對效能造成影響外，也可能出現執行時期錯誤，更詳細範例可參考良葛格的 [第 4 章 從 autoboxing、unboxing 認識物件](https://github.com/JustinSDK/JavaSE6Tutorial/blob/master/docs/CH04.md)。
+除了可能對效能造成影響外，也可能出現執行時期錯誤，更詳細範例可參考良葛格的 [從 autoboxing、unboxing 認識物件](https://github.com/JustinSDK/JavaSE6Tutorial/blob/master/docs/CH04.md)。
 
 小節:
 
-並非一定要避免建立物件，只不過建立小一點的物件或回收物件成本較便宜，以現代 JVM 的實作，如果能使得程式碼變得更簡潔這是好事。除非不得已，否則維護自己的 Object pool 會是一個壞主意，因為現代 JVM 已對垃圾處理做很好的優化，所以除非像是建立資料庫的連結物件過程很昂貴，那存放池中重用是合理。
+並非一定要避免建立物件，只不過建立小一點的物件或回收物件成本較便宜。以現代 JVM 的實作，如果能使得程式碼變得更簡潔這是好事。除非不得已，否則維護自己的 Object pool 會是一個壞主意，因為現代 JVM 已對垃圾處理做很好的優化，所以除非像是建立資料庫的連結物件過程很昂貴，那存放池中重用是合理。
+
+## Item 6: Eliminate obsolete object references ##
+
+以下這個 Stack 類別，雖然程式碼沒有問題，但是 pop() 方法這樣的實作在執行時期可能會造成 memory leak ，因為那個元素還是會被 elements 參考到，所以垃圾處理並不會把它清掉。且就算該元素已經 pop ，使用者依舊可以存取。
+    public class Stack {
+        private Object[] elements;
+        private int size = 0;
+        private static final int DEFAULT_INITIAL_CAPACITY = 16;
+        public Stack() {
+            elements = new Object[DEFAULT_INITIAL_CAPACITY];
+        }
+        public void push(Object e) {
+            ensureCapacity();
+            elements[size++] = e;
+        }
+        public Object pop() {
+            if (size == 0)
+                throw new EmptyStackException();
+            return elements[--size];
+        }
+        /**
+        * Ensure space for at least one more element, roughly
+        * doubling the capacity each time the array needs to grow.
+        */
+        private void ensureCapacity() {
+            if (elements.length == size)
+                elements = Arrays.copyOf(elements, 2 * size + 1);
+        }
+    }
+
+簡單的修正方式可以在 pop 後在那個元素寫入 null，這樣做的另一個好處是使用者誤用過時的索引時會產生 NullPointerException 。
+
+corrected version:
+
+    public Object pop() {
+        if (size == 0)
+            throw new EmptyStackException();
+        Object result = elements[--size];
+        elements[size] = null; // Eliminate obsolete reference
+        return result;
+    }
+
+但也不能這樣矯枉過正不斷的清空變數，應該要在適當的時機處理過時的引用，書中認為當自己管理記憶體時應該要注意。
+
+> Simply put, it manages its own memory. The storage pool consists of the elements of the elements array (the object reference cells, not the objects themselves).
+
+以上述這個 Stack 的類別，當執行 push 後放置這些資料的元素是可用的，但其他元素則是閒置狀態， Garbage Collector 並無法分辨兩者差別，進而無法有效的釋放空間。此時才需要程式設計師手動清空元素，告訴 GC 這個物件已經可以回收了。
+
+> Generally speaking, whenever a class manages its own memory, the programmer should be alert for memory leaks. Whenever an element is freed, any object references contained in the element should be nulled out.
+
+另一個常見的 memory leak 狀況是"快取"，可以使用 [java.util.WeakHashMap](https://docs.oracle.com/javase/8/docs/api/java/util/WeakHashMap.html) 來建立快取。(註: 該類中的 key 沒有外部引用的時候該元素會被清除，而不是 value 。)
+
+- [WeakHashMap和HashMap的区别](http://blog.csdn.net/yangzl2008/article/details/6980709)
+
+比較常見的情況是當項目的可用壽命隨著時間而下降，此時可以透過背景的執行緒 ( [java.util.Timer](https://docs.oracle.com/javase/8/docs/api/java/util/Timer.html) 或 [java.util.concurrent.ScheduledThreadPoolExecutor](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/ScheduledThreadPoolExecutor.html) ) 排程處理亦或是在添加新元素時跟著維護。 可以使用 [java.util.LinkedHashMap](https://docs.oracle.com/javase/8/docs/api/java/util/LinkedHashMap.html) 的 [removeEldestEntry](https://docs.oracle.com/javase/8/docs/api/java/util/LinkedHashMap.html#removeEldestEntry-java.util.Map.Entry-) 。
+
+第三種常見的 memory leak 是 listeners 和其他 callbacks。當客戶端 register 後卻沒有適當的 deregister ，此時這些 callback 會不斷的累積。要確保他們會被 GC 及時處理的方式就是只儲存 weak reference ，例如當成 WeakHashMap 的 key 或是使用 [java.lang.ref.WeakReference](https://docs.oracle.com/javase/8/docs/api/java/lang/ref/WeakReference.html)。
