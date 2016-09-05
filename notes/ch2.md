@@ -110,6 +110,7 @@ JAVA5 後可以使用 enum 來建立 singleton 物件，下面例子等同 publi
         public void leaveTheBuilding() { ... }
     }
 
+--------
 ## Item 4: Enforce noninstantiability with a private constructor ##
 
 有一些靜態方法或變數組成的類別，例如 [java.lang.Math](https://docs.oracle.com/javase/8/docs/api/java/lang/Math.html) 、 [java.util.Arrays](https://docs.oracle.com/javase/8/docs/api/java/util/Arrays.html)，或是用 factory methods 產生介面的[java.util.Collections](https://docs.oracle.com/javase/8/docs/api/java/util/Collections.html)。如果類別中沒有建構子，編譯器會自動產生，所以這幾個類別都用一個空的建構子並標上 private ，而 Math 甚至加上 final 防止被繼承。
@@ -126,6 +127,7 @@ JAVA5 後可以使用 enum 來建立 singleton 物件，下面例子等同 publi
         ... // Remainder omitted
     }
 
+--------
 ## Item 5: Avoid creating unnecessary objects ##
 
 盡可能重新使用物件而不是新建一個，例如 String 。
@@ -170,9 +172,11 @@ JAVA5 後可以使用 enum 來建立 singleton 物件，下面例子等同 publi
 
 並非一定要避免建立物件，只不過建立小一點的物件或回收物件成本較便宜。以現代 JVM 的實作，如果能使得程式碼變得更簡潔這是好事。除非不得已，否則維護自己的 Object pool 會是一個壞主意，因為現代 JVM 已對垃圾處理做很好的優化，所以除非像是建立資料庫的連結物件過程很昂貴，那存放池中重用是合理。
 
+--------
 ## Item 6: Eliminate obsolete object references ##
 
 以下這個 Stack 類別，雖然程式碼沒有問題，但是 pop() 方法這樣的實作在執行時期可能會造成 memory leak ，因為那個元素還是會被 elements 參考到，所以垃圾處理並不會把它清掉。且就算該元素已經 pop ，使用者依舊可以存取。
+
     public class Stack {
         private Object[] elements;
         private int size = 0;
@@ -226,3 +230,21 @@ corrected version:
 比較常見的情況是當項目的可用壽命隨著時間而下降，此時可以透過背景的執行緒 ( [java.util.Timer](https://docs.oracle.com/javase/8/docs/api/java/util/Timer.html) 或 [java.util.concurrent.ScheduledThreadPoolExecutor](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/ScheduledThreadPoolExecutor.html) ) 排程處理亦或是在添加新元素時跟著維護。 可以使用 [java.util.LinkedHashMap](https://docs.oracle.com/javase/8/docs/api/java/util/LinkedHashMap.html) 的 [removeEldestEntry](https://docs.oracle.com/javase/8/docs/api/java/util/LinkedHashMap.html#removeEldestEntry-java.util.Map.Entry-) 。
 
 第三種常見的 memory leak 是 listeners 和其他 callbacks。當客戶端 register 後卻沒有適當的 deregister ，此時這些 callback 會不斷的累積。要確保他們會被 GC 及時處理的方式就是只儲存 weak reference ，例如當成 WeakHashMap 的 key 或是使用 [java.lang.ref.WeakReference](https://docs.oracle.com/javase/8/docs/api/java/lang/ref/WeakReference.html)。
+
+--------
+## Item 7: Avoid finalizers ##
+
+- [Object.finalize()](https://docs.oracle.com/javase/8/docs/api/java/lang/Object.html#finalize--)
+- [物件終結者](http://openhome.cc/Gossip/JavaEssence/Finalize.html)
+
+應該要避免使用 finalizers ，因為它並不保證會被即時執行，可能會產生不可預期的錯誤。在 Java 中不可用的物件會被 GC 自動清除，不需要程式設計師煩惱，對於要回收非記憶體內的資源時 (像:資料庫的連結、檔案串流) 可以使用 try-finally 區塊。 也因為 finalizer 不只不保證即時執行也可能不會執行，所以更不可以用來釋放共享資源的鎖。
+
+> You should never depend on a finalizer to update critical persistent state.
+
+也不應該相信 System.gc 和 System.runFinalization 因為這只是提高執行的次序，依舊不保證會執行。除此之外一個在 Finalization 丟出的例外很可能被忽略，甚至沒有錯誤訊息，使得資源處在一個不好的狀態。當另一個執行緒使用到這樣的資源就可能會產生不可預期的行為。
+
+所以不應該將釋放資源的過程寫在 finalizer 中，而是提供一個明確的終止方法，並要求使用者不需要該物件時呼叫。幾個典型的例子像 [java.io.InputStream](https://docs.oracle.com/javase/8/docs/api/java/io/InputStream.html)、[java.io.OutputStream](https://docs.oracle.com/javase/8/docs/api/java/io/OutputStream.html) 和 [java.sql.Connection](https://docs.oracle.com/javase/8/docs/api/java/sql/Connection.html) 的 close() 以及 [java.util.Timer](https://docs.oracle.com/javase/8/docs/api/java/util/Timer.html) 的 cancel() 。
+
+> Explicit termination methods are typically used in combination with the try-finally construct to ensure termination.
+
+使用 finally 區塊可以保證就算出現例外也可以執行，類似於 Python 中的 with-as 區塊。
