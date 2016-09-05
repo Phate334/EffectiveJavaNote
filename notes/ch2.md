@@ -112,7 +112,7 @@ JAVA5 後可以使用 enum 來建立 singleton 物件，下面例子等同 publi
 
 ## Item 4: Enforce noninstantiability with a private constructor ##
 
-有一些靜態方法或變數組成的類別，例如 [java.lang.Math](https://docs.oracle.com/javase/8/docs/api/java/lang/Math.html) 或 [java.util.Arrays](https://docs.oracle.com/javase/8/docs/api/java/util/Arrays.html)，或是用 factory methods 產生介面的[java.util.Collections](https://docs.oracle.com/javase/8/docs/api/java/util/Collections.html)。如果類別中沒有建構子，編譯器會自動產生，所以這幾個類別都用一個空的建構子並標上 private ，而 Math 甚至加上 final 防止被繼承。
+有一些靜態方法或變數組成的類別，例如 [java.lang.Math](https://docs.oracle.com/javase/8/docs/api/java/lang/Math.html) 、 [java.util.Arrays](https://docs.oracle.com/javase/8/docs/api/java/util/Arrays.html)，或是用 factory methods 產生介面的[java.util.Collections](https://docs.oracle.com/javase/8/docs/api/java/util/Collections.html)。如果類別中沒有建構子，編譯器會自動產生，所以這幾個類別都用一個空的建構子並標上 private ，而 Math 甚至加上 final 防止被繼承。
 
 不能使用抽象的方式來禁止使用者實例化，因為這樣還是能被繼承的子類別產生實例，而且這樣會誤導使用者。
 保險的方式是在建構子中丟出 AssertionError 例外，這能確保該類別不會被實例化，也可以保證繼承的類別不會呼叫父類別的建構子。
@@ -125,3 +125,47 @@ JAVA5 後可以使用 enum 來建立 singleton 物件，下面例子等同 publi
         }
         ... // Remainder omitted
     }
+
+## Item 5: Avoid creating unnecessary objects ##
+
+盡可能重新使用物件而不是新建一個，例如 String 。
+
+- [那些字串二三事](http://openhome.cc/Gossip/JavaEssence/String.htm)
+
+除了重用 immutable 物件外，如果知道 mutable 物件不會再更改也應該盡量重用，例如以下書中範例的 Calendar、TimeZone 和 Date 物件，建立後可以不斷重複使用，而不是每次呼叫 isBabyBoomer 方法時都重新計算一次。
+
+    class Person {
+        private final Date birthDate;
+        // Other fields, methods, and constructor omitted
+        /**
+        * The starting and ending dates of the baby boom.
+        */
+        private static final Date BOOM_START;
+        private static final Date BOOM_END;
+        static {
+            Calendar gmtCal =
+            Calendar.getInstance(TimeZone.getTimeZone("GMT"));
+            gmtCal.set(1946, Calendar.JANUARY, 1, 0, 0, 0);
+            BOOM_START = gmtCal.getTime();
+            gmtCal.set(1965, Calendar.JANUARY, 1, 0, 0, 0);
+            BOOM_END = gmtCal.getTime();
+        }
+        public boolean isBabyBoomer() {
+            return birthDate.compareTo(BOOM_START) >= 0 &&
+            birthDate.compareTo(BOOM_END) < 0;
+        }
+    }
+
+另外要注意的是基本型態 (primitive type) 在 J2SE 5.0 後提供了 autoboxing 功能，如下範例編譯器會自動將 int 包裹 (wrap) 成 Integer。
+
+    Integer temp = 10;
+
+其他的基本型態 boolean、byte、short、char、long、float 和 double 都有對應的 Wrapper Type ，這雖然會使程式碼變得精簡，但這只是 Compiler sugar ，上述程式碼編譯後等同於:
+
+    Integer temp = new Integer(10);
+
+除了可能對效能造成影響外，也可能出現執行時期錯誤，更詳細範例可參考良葛格的 [第 4 章 從 autoboxing、unboxing 認識物件](https://github.com/JustinSDK/JavaSE6Tutorial/blob/master/docs/CH04.md)。
+
+小節:
+
+並非一定要避免建立物件，只不過建立小一點的物件或回收物件成本較便宜，以現代 JVM 的實作，如果能使得程式碼變得更簡潔這是好事。除非不得已，否則維護自己的 Object pool 會是一個壞主意，因為現代 JVM 已對垃圾處理做很好的優化，所以除非像是建立資料庫的連結物件過程很昂貴，那存放池中重用是合理。
