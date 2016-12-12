@@ -9,7 +9,7 @@
 
 但有一種 value class 不需要複寫，那就是 (Item 1) 中提到受物件控制的類別，例如 Enum 。因為這種類別的 logical equality 跟 object identity 指的是同一件事，因此跟 Object 的 equals 是同樣意思。
 
-根據 Object 在 JavaSE6 的規範， equals 應遵守以下的 equivalence relation:
+根據 Object 的[規範](https://docs.oracle.com/javase/8/docs/api/java/lang/Object.html#equals-java.lang.Object-)， equals 應遵守以下的 equivalence relation:
 
 1. Reflexive: 對於任何 non-null 的值，x.equals(x) => true。
 2. Symmetric: 對於任何 non-null 的值，當 y.equals(x) => true，則 x.equals(y) => true。
@@ -28,11 +28,11 @@
 
 - [Why can't we use '==' to compare two float or double numbers](http://stackoverflow.com/questions/17898266/why-cant-we-use-to-compare-two-float-or-double-numbers)
 
-因為某些引用對象是允許為 null ，所以避免引發 NullPointerException 經常使用下列寫法做比較。
+因為某些欄位是允許為 null ，所以避免引發 NullPointerException 經常使用下列寫法做比較。
 
     (field == null ? o.field == null : field.equals(o.field))
 
-假如兩個比較欄位通常是同一個對象，則下列作法會更有效率。
+假如兩個比較欄位經常是同一個物件，則下列作法會更有效率。
 
     (field == o.field || (field != null && field.equals(o.field)))
 
@@ -41,3 +41,44 @@
 - 複寫 equals 時一定要複寫 hashCode (Item 9)。
 - 讓 equals 的邏輯盡量保持簡單。
 - 常見的錯誤是參數型別不是 Object，這樣不會複寫 Object 的 equals ，而是重載而已。
+
+--------
+## Item 9: Always override hashCode when you override equals ##
+
+根據[規範](https://docs.oracle.com/javase/8/docs/api/java/lang/Object.html#hashCode--):
+
+1. 只要在執行期間，只要被 equals 比較用到的欄位沒有更動，那麼每次呼叫應傳回同樣的整數。但同一支應用程式每次的執行過程可以回傳不同值。
+2. 如果 equals 回傳 true ，則兩個物件的 hashCode 應回傳同樣的整數。
+3. 但是如果 equals 回傳 false ，則兩者回傳的 hashCode 不一定要不同，只不過給予不同的回傳值可能可以提高 hash table 的效能。
+
+因為兩個不同的物件在邏輯上是可能相等，但是如果使用 Object 類別的 hashCode 將會回傳不同的值，所以這時沒有複寫 hashCode 會違反第二條規定，
+
+不正確複寫 hashCode ，多數 Hash 的集合可能無法正確運作，例如 HashMap 、 HashSet 和 Hashable 。
+例如 HashMap.get() 時無法取得內容或取得不符期望的物件。
+
+--------
+## Item 10: Always override toString #
+
+“a concise but informative representation that is easy for a person to read” [JavaSE6].
+
+雖然 toString 方法並不像 equals 和 hashCode 那麼重要，但提供好的 toString 能幫助類別更好用，例如 print 、字串串聯符號、assert 或者被印出到終端時， toString 都會被自動選用。
+
+--------
+## Item 11: Override clone judiciously ##
+
+[Object.clone()](https://docs.oracle.com/javase/8/docs/api/java/lang/Object.html#clone--)
+
+Cloneable 介面是為了供 mixin interface (Item 18) 所用，表示該物件允許複製。
+
+直接呼叫 super.clone() 只會複製原物件中成員的參考，所以修改原物件會影響到複製出的內容。
+
+(Item 17)
+
+--------
+## Item 12: Consider implementing Comparable ##
+
+[Comparable](https://docs.oracle.com/javase/8/docs/api/java/lang/Comparable.html)
+
+規則與 equals 類似，比較對象較小傳回*負值*，較大則傳回*正值*。 如果行為和 equals 不一致應該要明確說明。
+
+    (x.compareTo(y) == 0) == (x.equals(y))
